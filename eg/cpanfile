@@ -1,0 +1,6 @@
+requires 'Data::Section::Simple';
+requires 'HTML::Parser';
+requires 'Plack';
+requires 'Template';
+requires 'XML::Atom';
+
