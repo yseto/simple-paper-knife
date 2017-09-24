@@ -1,8 +1,11 @@
 package MyParser;
 
+use strict;
+use warnings;
 use parent 'HTML::Parser';
 
-use Data::Dumper;
+use HTML::Entities;
+use HTML::TreeBuilder;
 
 our @wrap;
 our @result;
@@ -20,7 +23,8 @@ sub new {
     );
 
     $self->{output} = '';
-    $self->{split_length} = $attr{split_length} or 20000;
+    $self->{split_length} = (defined $attr{split_length}) ? $attr{split_length} : 20000;
+    $self->{repair_html} = (defined $attr{repair_html}) ? $attr{repair_html} : 1;
     @wrap = ();
     @result = ();
 
@@ -29,7 +33,6 @@ sub new {
 
 sub start {
     my ($self, $tagname, $attr, $attrseq, $text) = @_;
-#   print $text;
     if ($tagname !~ m/$ignore/) {
         push @wrap, { tagname => $tagname, attr => $attr, attrseq => $attrseq };
     }
@@ -42,31 +45,16 @@ sub end {
 
     $self->{output} .= $text;
 
-#   warn $tagname;
-
-#   warn $endpos;
-#warn $wrap[$endpos];
-
-#   warn $tagname;
-#warn $wrap[$endpos];
-
     if ($tagname !~ m/$ignore/) {
         if ($wrap[$endpos]->{tagname} eq $tagname) {
             pop @wrap;
-        } else {
-#           warn $endpos, $tagname;
-#           warn Dumper @wrap;
         }
     }
 
     if ( length($self->{output}) > $self->{split_length}) {
         if ($tagname =~ m/^(div)$/) {
-#               warn $endpos, $tagname;
-#               warn Dumper @wrap;
-
-
-                push @result, { doc => $self->{output}, wrap => [@wrap], };
-                $self->{output} = '';
+            push @result, { doc => $self->{output}, wrap => [@wrap], };
+            $self->{output} = '';
         }
     }
 }
@@ -78,14 +66,12 @@ sub end_document {
     $tmp->{doc} .= $self->{output};
     push @result, $tmp;
     $self->{output} = '';
-
 }
 
 sub output {
+    my $self = shift;
 
-# index > 1
     my @output;
-
     my $i = 0;
     foreach (@result) {
         $i++;
@@ -97,19 +83,31 @@ sub output {
                 $tmp .= '>';
             }
         }
-warn $tmp;
         $tmp .= $_->{doc};
 
 # closing content
         if ($i < scalar(@result)) {
             foreach my $leaf (@{$_->{wrap}}) {
                 $tmp .= sprintf '</%s>', $leaf->{tagname};
-                warn sprintf '</%s>', $leaf->{tagname};
             }
         }
-        push @output, $tmp;
+        push @output, ($self->{repair_html}) ? repair_html($tmp) : $tmp;
     }
+
     @output;
+}
+
+sub repair_html {
+    my $html = shift;
+    no strict 'refs';
+    no warnings 'redefine';
+    local *HTML::Entities::encode_entities = sub {};
+    local *HTML::Entities::decode = sub {};
+    my $output = HTML::TreeBuilder->new->parse($html)->as_HTML;
+    $output =~ s#<html><head></head><body>##g;
+    $output =~ s#</body>\s?</html>##g;
+    $output =~ s#<div>(?:\&nbsp;)?</div>##ig;
+    return $output;
 }
 
 1;

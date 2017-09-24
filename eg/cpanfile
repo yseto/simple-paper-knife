@@ -1,6 +1,9 @@
 requires 'Data::Section::Simple';
+requires 'HTML::Entities';
 requires 'HTML::Parser';
+requires 'HTML::TreeBuilder';
 requires 'Plack';
+requires 'Plack::Middleware::ReverseProxy';
 requires 'Template';
 requires 'XML::Atom';
 

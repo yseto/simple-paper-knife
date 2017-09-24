@@ -22,22 +22,29 @@ sub index {
     my @entries;
     my $body;
     my $link;
+    my $title;
 
     if (my $atom = $req->param('atom')) {
         my $feed = XML::Atom::Feed->new(URI->new($atom));
         @entries = $feed->entries;
+        $title = $feed->title;
     }
 
-    if (my $feedno = $req->param('feedno')) {
+    if (defined $req->param('feedno')) {
+        my $feedno = $req->param('feedno');
         if (defined $entries[$feedno]) {
             $body = $entries[$feedno]->content->body;
             $link = $entries[$feedno]->link->href;
+            $title .= " - " . $entries[$feedno]->title;
         }
     }
 
     return [404, [], ["not found"]] unless $body;
 
-    my $parser = MyParser->new(split_length => 5000);
+    my $parser = MyParser->new(
+        split_length => 5000,
+        ((defined $req->param('mode')) ?  (repair_html => $req->param('mode')) : ())
+    );
     $parser->parse($body);
     $parser->eof;
     my @res = $parser->output;
@@ -55,6 +62,7 @@ sub index {
     tmpl(
         content => $res[$page - 1],
         page => $page,
+        title => decode_utf8($title),
         total_page => [1 .. scalar(@res)],
         pager_base_url => $uri->as_string,
         link => $link,
@@ -71,6 +79,7 @@ sub tmpl {
 }
 
 builder {
+    enable 'ReverseProxy';
     mount '/index' => \&index;
 };
 
@@ -90,7 +99,7 @@ __DATA__
     <div class="container">
       <div class="header clearfix">
         <h3 class="text-muted">simple-paper-knife</h3>
-        <small><a href="https://www.google.com/url?sa=D&q=[% link %]" target="blank">[% link %]</a></small>
+        <small><a href="https://www.google.com/url?sa=D&q=[% link %]" target="blank">[% link %]</a><br>[% title %]</small>
       </div>
       <div class="row">
         <div class="col-md-12">[% content %]</div>
